@@ -95,15 +95,19 @@ OUTPUT FORMAT (IMPORTANT)
     return instructions
 
 
-def build_image_model_prompt(pipeline_json: dict) -> str:
+def build_image_model_prompt(pipeline_json: dict, repo_url: str) -> str:
     """
     Build the full prompt for the image model (Nano Banana Pro) to create the infographic.
     """
     json_block = json.dumps(pipeline_json, indent=2)
-    instructions = """
+    instructions = f"""
 You are an expert data visualization designer using Nano Banana Pro (Gemini 3 Pro Image).
 Your task is to turn a JSON specification of a codebase's data pipeline into a clear,
 modern 16:9 infographic.
+
+REPOSITORY CONTEXT
+You have access to the original repository at: {repo_url}
+Use the URL context tool to verify the pipeline structure and gather additional context if needed.
 
 INPUT
 - You are given a JSON object describing:
@@ -226,12 +230,15 @@ def call_image_model(
 ):
     """
     Call the image model (Nano Banana Pro) to generate the infographic and save it.
+    Uses URL context tool to access the original repository for additional context.
     """
     print(f"[INFO] Calling image model: {model}")
+    print("[INFO] Using URL context tool for additional repository context...")
     response = client.models.generate_content(
         model=model,
         contents=prompt,
         config=types.GenerateContentConfig(
+            tools=[{"url_context": {}}],
             response_modalities=["Image"],
             image_config=types.ImageConfig(
                 aspect_ratio="16:9",
@@ -300,8 +307,8 @@ def main():
         json.dump(pipeline_json, f, indent=2)
     print(f"[INFO] Saved pipeline JSON to: {pipeline_json_path}")
 
-    # Step 2: JSON -> Infographic via image model
-    image_prompt = build_image_model_prompt(pipeline_json)
+    # Step 2: JSON -> Infographic via image model with URL context
+    image_prompt = build_image_model_prompt(pipeline_json, args.repo_url)
     call_image_model(
         client=client,
         model=args.image_model,

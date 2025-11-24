@@ -1,104 +1,199 @@
 # GitHub to Nano Banana Infographic
 
-Generate a data pipeline infographic from any GitHub repo using Gemini:
+**Automatically generate beautiful data pipeline infographics from any GitHub repository using AI.**
 
-1. Gemini 3 Pro analyzes the repo and produces a JSON pipeline spec.
-2. Nano Banana Pro (Gemini 3 Pro Image) converts that JSON into a 16:9 infographic.
+This tool uses Google's Gemini models to:
+1. **Analyze** your codebase and understand its execution flow
+2. **Extract** the data pipeline architecture (entry points, data flow, external services)
+3. **Generate** a professional 16:9 infographic visualization
+
+Perfect for documentation, presentations, onboarding, and technical design reviews.
 
 ---
 
-## Setup
+## ✨ Example Output
 
-### 1. Clone this repo
+Here's an infographic generated for the [California-Law-Chatbot](https://github.com/ArjunDivecha/California-Law-Chatbot) repository:
+
+![California Law Chatbot Pipeline](examples/California-Law-Chatbot.png)
+
+The tool automatically identified:
+- **Offline ingestion pipeline**: PDF processing → Chunking → Embedding → Vector DB
+- **Online query pipeline**: User input → RAG retrieval → LLM generation → Verification → UI display
+- **Decision logic**: Source mode selection (CEB Only, Hybrid, AI Only)
+- **Feedback loops**: Two-pass verification system (Gemini → Claude)
+- **External services**: OpenAI, Anthropic, CourtListener, Upstash
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone and Install
 
 ```bash
 git clone https://github.com/ArjunDivecha/GitHub-to-nanobanana-infographic
 cd GitHub-to-nanobanana-infographic
-```
 
-### 2. Python environment
-
-```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure Gemini API key
-
-Copy the example env file and edit:
+### 2. Configure API Key
 
 ```bash
 cp .env.example .env
 ```
 
-Then open `.env` and set:
-
+Edit `.env` and add your Gemini API key:
 ```
-GEMINI_API_KEY=your_real_api_key_here
+GEMINI_API_KEY=your_api_key_here
 ```
 
----
+Get your API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-## Usage
-
-### Basic usage:
+### 3. Generate Your First Infographic
 
 ```bash
-python repo2infographic.py https://github.com/owner/some-repo
+python repo2infographic.py https://github.com/owner/repo-name
 ```
 
-This will:
-- Use Gemini's URL context tool to directly read the GitHub repository.
-- Analyze the codebase and infer a data pipeline.
-- Save a JSON spec to: `repo2infographic_output/pipeline.json`
-- Generate a 16:9 infographic and save it to: `repo2infographic_output/pipeline.png`
+**Output:**
+- `repo2infographic_output/repo-name.json` – Structured pipeline data
+- `repo2infographic_output/repo-name.png` – Beautiful 16:9 infographic
 
-### You can customize:
+---
+
+## 📖 Usage
+
+### Basic Usage
 
 ```bash
-python repo2infographic.py \
-  https://github.com/owner/some-repo \
-  --out-dir my_output \
-  --text-model gemini-3-pro-preview \
-  --image-model gemini-3-pro-image-preview
+python repo2infographic.py https://github.com/ArjunDivecha/California-Law-Chatbot
+```
+
+### Custom Output Directory
+
+```bash
+python repo2infographic.py https://github.com/owner/repo --out-dir my_output
+```
+
+### Custom Models
+
+```bash
+python repo2infographic.py https://github.com/owner/repo \
+  --text-model gemini-2.5-pro \
+  --image-model nano-banana-pro-preview
+```
+
+### Available Options
+
+```
+python repo2infographic.py --help
 ```
 
 ---
 
-## How It Works
+## 🧠 How It Works
 
-1. **URL Context Tool**
-   The script uses Gemini's URL context tool to directly fetch and analyze the GitHub repository without cloning it locally. This is faster, more token-efficient, and eliminates the need for local git operations.
+### 1. Deep Code Analysis
+The tool uses **Gemini 2.5 Pro** with the URL context tool to:
+- Read the entire repository directly from GitHub (no cloning needed)
+- Identify entry points (`main.py`, `app.py`, `index.tsx`, etc.)
+- Trace execution flow and data movement
+- Detect decision nodes (if/else logic)
+- Find feedback loops and retry mechanisms
+- Label external API calls
 
-2. **Text Model (Pipeline JSON)**
-   Gemini 3 Pro (default `gemini-3-pro-preview`) analyzes the repository and returns a JSON object describing:
-   - `repo_name`
-   - `repo_summary`
-   - `pipeline_overview`
-   - `phases` and `steps` (with `source_nodes`, `process_script`, `target_nodes`, `description`)
+### 2. Architecture Detection
+Automatically handles different application types:
+- **ETL/Scripts**: File → Processing → Output
+- **Web Apps**: Request → Router → Controller → Service → Database → Response
+- **CLIs**: Command → Handler → Logic → Output
+- **Chatbots**: User Input → Message Handler → LLM → Response
 
-3. **Image Model (Infographic)**
-   It feeds that JSON into Nano Banana Pro (`gemini-3-pro-image-preview`) with layout instructions:
-   - Phases as horizontal swimlanes.
-   - Steps as labeled boxes.
-   - Arrows representing flow between steps.
+### 3. Pipeline Extraction
+Generates a structured JSON with:
+- **Phases**: Ingestion, Cleaning, Feature Engineering, Modeling, Optimization, Reporting
+- **Steps**: Each with source nodes, process scripts, target nodes, and descriptions
+- **Metadata**: Decision logic, external services, feedback loops
 
-4. **Outputs**
-   - `pipeline.json` – canonical pipeline spec.
-   - `pipeline.png` – infographic ready for slides, docs, etc.
+### 4. Visual Generation
+Uses **Nano Banana Pro** (Gemini's image generation model) to create:
+- 16:9 landscape infographic
+- Horizontal swimlanes for phases
+- Labeled boxes for steps
+- Arrows showing data flow
+- Clean, professional design
 
 ---
 
-## Notes & Limitations
+## 🎯 What It Captures
 
-- Works best on small–medium repos with clear data-processing pipelines.
-- Gemini's URL context tool can handle large repositories, but extremely large monorepos with thousands of files may take longer to process.
-- The repository must be publicly accessible on GitHub (private repos require authentication).
-- The models may occasionally misinterpret edge cases; treat the output as a draft diagram you can refine.
+- ✅ **Entry points** and main execution paths
+- ✅ **Data flow** (files, APIs, databases, in-memory objects)
+- ✅ **Decision logic** (branching based on config/mode)
+- ✅ **Feedback loops** (retries, verification)
+- ✅ **External services** (OpenAI, Anthropic, AWS, etc.)
+- ✅ **Offline vs. Online** pipelines
+- ✅ **Multi-stage architectures** (RAG, two-pass systems)
 
 ---
 
-## License
+## 📊 Best Practices
 
-MIT (or whatever you prefer).
+### Works Great For:
+- Data processing pipelines
+- ML/AI applications with RAG
+- Web applications with clear service layers
+- CLI tools with defined workflows
+- Chatbots and conversational AI
+
+### Tips for Best Results:
+- Ensure your repo has clear entry points
+- Use descriptive file and function names
+- Add comments for complex logic
+- Keep architecture modular
+
+### Limitations:
+- Works best on small-to-medium repos (< 1000 files)
+- Requires public GitHub repos (or provide authentication)
+- May oversimplify very complex monorepos
+- Treat output as a starting point for refinement
+
+---
+
+## 🛠️ Advanced Features
+
+### Fallback Logic
+If `gemini-3-pro-preview` is overloaded, the tool automatically falls back to `gemini-2.5-pro`.
+
+### Markdown Handling
+Automatically strips markdown code blocks from model responses for robust JSON parsing.
+
+### Smart Naming
+Output files are named after the repository (e.g., `California-Law-Chatbot.png`) instead of generic names.
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Feel free to:
+- Report bugs
+- Suggest features
+- Submit pull requests
+- Share example infographics
+
+---
+
+## 📝 License
+
+MIT License - feel free to use this for any purpose.
+
+---
+
+## 🙏 Acknowledgments
+
+Built with:
+- [Google Gemini](https://ai.google.dev/) for code analysis and image generation
+- [Nano Banana Pro](https://ai.google.dev/gemini-api/docs/models/gemini#nano-banana-pro) for infographic creation

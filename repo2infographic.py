@@ -13,8 +13,8 @@ from PIL import Image  # noqa: F401 (required for as_image() to work internally)
 
 # ---------- Configuration ----------
 
-DEFAULT_TEXT_MODEL = "gemini-3-pro-preview"
-DEFAULT_IMAGE_MODEL = "gemini-3-pro-image-preview"
+DEFAULT_TEXT_MODEL = "gemini-2.5-pro"
+DEFAULT_IMAGE_MODEL = "nano-banana-pro-preview"
 
 
 # ---------- Prompt Templates ----------
@@ -27,30 +27,40 @@ def build_text_model_prompt(repo_url: str) -> str:
 You are a Principal Systems Architect. Your task is to analyze the GitHub repository at:
 {repo_url}
 
-Use the URL context tool to fetch and analyze the ENTIRE codebase, then produce a JSON specification of the data processing pipeline.
+Use the URL context tool to fetch and analyze the ENTIRE codebase. You must understand the ACTUAL execution flow, not just guess based on file names.
+
+CRITICAL INSTRUCTIONS FOR ANALYSIS:
+1. **Identify Entry Points**: Find the main entry point (e.g., `main.py`, `app.py`, `cli.py`, `Dockerfile`, `manage.py`). Start your analysis there.
+2. **Trace Execution**: Follow the code execution path. Who calls whom? Where does data go?
+3. **Detect Data Movement**: Look for:
+   - File I/O (read/write)
+   - API Calls (requests, fetch)
+   - Database interactions (SQL, ORM)
+   - Major function arguments and return values (data passing)
+4. **Handle Different Architectures**:
+   - If it's a **Script/ETL**: Trace file -> script -> file.
+   - If it's a **Web App/API**: Trace Request -> Router -> Controller -> Service -> Database -> Response.
+   - If it's a **CLI**: Trace Command -> Handler -> Logic -> Output.
+   - If it's a **Chatbot**: Trace User Input -> Message Handler -> LLM Client -> Response.
+
+SPECIAL FOCUS: LOGIC & CONTROL FLOW
+- **Decision Nodes**: Look for `if/else` logic that fundamentally changes the data flow (e.g., "If mode is 'Hybrid', do X, else do Y"). Represent these as distinct steps or notes.
+- **Feedback Loops**: Look for processes that loop back or retry (e.g., "If verification fails, rewrite answer"). Explicitly mention this in the step description.
+- **External Services**: Explicitly identify and label API calls to external services (e.g., "OpenAI API", "Anthropic API", "CourtListener API", "Google GenAI").
 
 HIGH-LEVEL OBJECTIVE
 - Discover how data flows through this repository.
 - Describe the end-to-end pipeline as a set of ordered phases and steps.
 - Output a single JSON object that follows the schema below, with NO extra commentary.
 
-SCOPE OF ANALYSIS
-- Consider:
-  - Executable code: *.py, *.ipynb, *.js, *.ts, *.sh, *.R
-  - Config/metadata: *.yaml, *.yml, *.toml, *.ini, *.json, *.cfg, *.conf
-  - Orchestration/workflow definitions (e.g., Airflow, Prefect, Makefiles).
-- Trace the flow of data through the code:
-  - Source file(s) -> Processing script -> Target file(s).
-  - Focus on actual I/O and key transformations.
-
 PHASE MODEL
-Assign every step to exactly ONE high-level phase from this fixed list:
-  1. Ingestion
-  2. Cleaning & Normalization
-  3. Feature Engineering
-  4. Modeling / Computation
-  5. Optimization / Post-Processing
-  6. Reporting / Export
+Assign every step to exactly ONE high-level phase from this fixed list (map your findings to the closest fit):
+  1. Ingestion (User Input, API Requests, Loading Config/Data)
+  2. Cleaning & Normalization (Validation, Parsing, Pre-processing)
+  3. Feature Engineering (Data Transformation, Embedding Generation, RAG Retrieval)
+  4. Modeling / Computation (Core Logic, LLM Calls, Inference, Business Rules)
+  5. Optimization / Post-Processing (Formatting, Filtering, Ranking, Verification Loops)
+  6. Reporting / Export (Saving to DB, Writing Files, API Response, UI Display)
 
 Use the following format for phase_name:
   "1. Ingestion", "2. Cleaning & Normalization", etc.
@@ -70,21 +80,18 @@ Your output MUST be a single JSON object with this structure:
       - Each step object:
         - step_id: string like "1.1", "1.2", "2.1", etc.
         - label: very short human-readable name to show inside a box.
-        - source_nodes: array of input filenames (strings, case-sensitive).
-        - process_script: the main script file executing the logic (string).
-        - target_nodes: array of output filenames (strings, case-sensitive).
+        - source_nodes: array of inputs (files, API endpoints, user input, databases).
+        - process_script: the script or module executing the logic (e.g., "main.py", "utils.py").
+        - target_nodes: array of outputs (files, API responses, UI updates, databases).
         - description: concise summary (5–10 words) of what the step does.
-        - notes (optional): any important nuance or assumptions.
+        - notes (optional): any important nuance, assumptions, or decision logic (e.g., "Only if mode=Hybrid").
 
 RULES AND CONSTRAINTS
-- Use ONLY files that exist in this repository; all names must be exact and case-sensitive.
-- If there are multiple inputs or outputs, include all of them in the arrays.
-- Do NOT invent imaginary files, tables, or scripts.
-- If a step's inputs or outputs are unclear, either:
-  - infer sensibly from the code, or
-  - leave source_nodes or target_nodes as [] rather than fabricating.
-- Prefer fewer, meaningful steps over hundreds of trivial ones.
-- Capture the true logical pipeline order as best you can.
+- Use ONLY files/modules that exist in this repository.
+- Be specific about "source_nodes" and "target_nodes". If it's a variable or in-memory object, you can name it (e.g., "DataFrame", "User Prompt").
+- Do NOT invent imaginary files.
+- Capture the true logical pipeline order.
+- If a step is "Run Analysis", the source might be "Cleaned Data" and target might be "Report".
 
 OUTPUT FORMAT (IMPORTANT)
 - Respond with VALID JSON ONLY.
@@ -197,29 +204,70 @@ def call_text_model(
     """
     Call the text model to generate the JSON pipeline spec, and parse it.
     Uses URL context tool to directly read the GitHub repository.
+    Tries gemini-3-pro-preview first, falls back to gemini-2.5-pro if unavailable.
     """
-    print(f"[INFO] Calling text model: {model}")
-    print("[INFO] Using URL context tool to analyze repository...")
+    from google.genai import errors
+    
+    # Try gemini-3-pro-preview first if that's what was requested
+    models_to_try = []
+    if model == "gemini-3-pro-preview":
+        models_to_try = ["gemini-3-pro-preview", "gemini-2.5-pro"]
+    else:
+        models_to_try = [model]
+    
+    last_error = None
+    for attempt_model in models_to_try:
+        try:
+            print(f"[INFO] Calling text model: {attempt_model}")
+            print("[INFO] Using URL context tool to analyze repository...")
 
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            tools=[{"url_context": {}}],
-        ),
-    )
-    if not response.text:
-        raise RuntimeError("Text model returned no text.")
+            response = client.models.generate_content(
+                model=attempt_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[{"url_context": {}}],
+                ),
+            )
+            if not response.text:
+                print(f"[DEBUG] Response object: {response}", file=sys.stderr)
+                print(f"[DEBUG] Response parts: {response.parts}", file=sys.stderr)
+                print(f"[DEBUG] Response candidates: {response.candidates}", file=sys.stderr)
+                raise RuntimeError("Text model returned no text.")
 
-    raw = response.text.strip()
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as e:
-        print("[ERROR] Failed to parse JSON from model response.", file=sys.stderr)
-        print("Raw response:", file=sys.stderr)
-        print(raw, file=sys.stderr)
-        raise e
-    return parsed
+            raw = response.text.strip()
+            
+            # Strip markdown code blocks if present
+            if raw.startswith("```"):
+                # Find the first newline after opening ```
+                first_newline = raw.find("\n")
+                if first_newline != -1:
+                    # Find the closing ```
+                    closing = raw.rfind("```")
+                    if closing != -1:
+                        raw = raw[first_newline + 1:closing].strip()
+            
+            try:
+                parsed = json.loads(raw)
+                print(f"[INFO] Successfully used model: {attempt_model}")
+                return parsed
+            except json.JSONDecodeError as e:
+                print("[ERROR] Failed to parse JSON from model response.", file=sys.stderr)
+                print("Raw response:", file=sys.stderr)
+                print(raw, file=sys.stderr)
+                raise e
+                
+        except errors.ServerError as e:
+            last_error = e
+            if "overloaded" in str(e).lower() or "unavailable" in str(e).lower():
+                print(f"[WARNING] {attempt_model} is unavailable (overloaded). Trying fallback...", file=sys.stderr)
+                continue
+            else:
+                raise
+    
+    # If we get here, all models failed
+    if last_error:
+        raise last_error
+    raise RuntimeError("No models succeeded")
 
 
 def call_image_model(
@@ -230,15 +278,12 @@ def call_image_model(
 ):
     """
     Call the image model (Nano Banana Pro) to generate the infographic and save it.
-    Uses URL context tool to access the original repository for additional context.
     """
     print(f"[INFO] Calling image model: {model}")
-    print("[INFO] Using URL context tool for additional repository context...")
     response = client.models.generate_content(
         model=model,
         contents=prompt,
         config=types.GenerateContentConfig(
-            tools=[{"url_context": {}}],
             response_modalities=["Image"],
             image_config=types.ImageConfig(
                 aspect_ratio="16:9",
@@ -288,10 +333,15 @@ def main():
     )
     args = parser.parse_args()
 
+    # Extract repo name from URL for output filenames
+    repo_name = args.repo_url.rstrip('/').split('/')[-1]
+    if not repo_name:
+        repo_name = "pipeline"
+
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    pipeline_json_path = out_dir / "pipeline.json"
-    infographic_path = out_dir / "pipeline.png"
+    pipeline_json_path = out_dir / f"{repo_name}.json"
+    infographic_path = out_dir / f"{repo_name}.png"
 
     client = create_client()
 

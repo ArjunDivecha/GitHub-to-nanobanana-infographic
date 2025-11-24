@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+repo2infographic_output/
+.idea/
+.vscode/

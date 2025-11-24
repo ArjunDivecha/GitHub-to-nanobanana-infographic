@@ -2,7 +2,7 @@
 
 Generate a data pipeline infographic from any GitHub repo using Gemini:
 
-1. A Gemini text model analyzes the repo and produces a JSON pipeline spec.
+1. Gemini 3 Pro analyzes the repo and produces a JSON pipeline spec.
 2. Nano Banana Pro (Gemini 3 Pro Image) converts that JSON into a 16:9 infographic.
 
 ---
@@ -60,7 +60,7 @@ This will:
 python repo2infographic.py \
   https://github.com/owner/some-repo \
   --out-dir my_output \
-  --text-model gemini-2.5-flash \
+  --text-model gemini-3-pro-preview \
   --image-model gemini-3-pro-image-preview
 ```
 
@@ -83,7 +83,7 @@ python repo2infographic.py https://github.com/owner/some-repo --keep-temp
    It walks the repo, selects up to 40 relevant files (`.py`, `.js`, configs, etc.) and builds a textual context (file list + truncated contents).
 
 3. **Text Model (Pipeline JSON)**
-   It sends a structured prompt and the repo context to a Gemini text model (default `gemini-2.5-flash`), which returns a JSON object describing:
+   It sends a structured prompt and the repo context to Gemini 3 Pro (default `gemini-3-pro-preview`), which returns a JSON object describing:
    - `repo_name`
    - `repo_summary`
    - `pipeline_overview`

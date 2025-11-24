@@ -16,7 +16,7 @@ from PIL import Image  # noqa: F401 (required for as_image() to work internally)
 
 # ---------- Configuration ----------
 
-DEFAULT_TEXT_MODEL = "gemini-2.5-flash"
+DEFAULT_TEXT_MODEL = "gemini-3-pro-preview"
 DEFAULT_IMAGE_MODEL = "gemini-3-pro-image-preview"
 
 RELEVANT_EXTS = {

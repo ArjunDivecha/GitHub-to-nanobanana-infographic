@@ -2,10 +2,7 @@
 import argparse
 import json
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -19,115 +16,18 @@ from PIL import Image  # noqa: F401 (required for as_image() to work internally)
 DEFAULT_TEXT_MODEL = "gemini-3-pro-preview"
 DEFAULT_IMAGE_MODEL = "gemini-3-pro-image-preview"
 
-RELEVANT_EXTS = {
-    ".py",
-    ".ipynb",
-    ".js",
-    ".ts",
-    ".sh",
-    ".r",
-    ".R",
-    ".yaml",
-    ".yml",
-    ".toml",
-    ".json",
-    ".ini",
-    ".cfg",
-    ".conf",
-    ".sql",
-    ".txt",
-    ".md",
-}
-
-
-# ---------- Git / Repo Utilities ----------
-
-def clone_repo(repo_url: str) -> Path:
-    """
-    Clone the given GitHub repo URL into a temporary directory and return the repo root path.
-    """
-    tmp_dir = Path(tempfile.mkdtemp(prefix="repo2inf-"))
-    try:
-        print(f"[INFO] Cloning repo: {repo_url}")
-        subprocess.run(
-            ["git", "clone", "--depth", "1", repo_url, str(tmp_dir)],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-    except subprocess.CalledProcessError as e:
-        print("[ERROR] Failed to clone repository.", file=sys.stderr)
-        print(e.stderr, file=sys.stderr)
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        raise
-
-    # If git created a nested folder, detect it (defensive)
-    subdirs = [p for p in tmp_dir.iterdir() if p.is_dir()]
-    git_root_subdirs = [d for d in subdirs if (d / ".git").exists()]
-    if len(git_root_subdirs) == 1:
-        return git_root_subdirs[0]
-    if (tmp_dir / ".git").exists():
-        return tmp_dir
-    # Fallback
-    return tmp_dir
-
-
-def build_repo_context(
-    repo_root: Path,
-    max_files: int = 40,
-    max_chars_per_file: int = 4000,
-) -> str:
-    """
-    Walk the repo and generate a text block that includes:
-    - a simple file list
-    - contents of up to `max_files` relevant files, each truncated to `max_chars_per_file`.
-    """
-    print(f"[INFO] Building repo context from: {repo_root}")
-    all_files = sorted(
-        [
-            p
-            for p in repo_root.rglob("*")
-            if p.is_file() and p.suffix in RELEVANT_EXTS
-        ],
-        key=lambda p: str(p),
-    )
-
-    selected_files = all_files[:max_files]
-
-    lines = []
-    lines.append(f"Repository root: {repo_root.name}")
-    lines.append("Relevant files (limited set):")
-    for path in selected_files:
-        rel = path.relative_to(repo_root)
-        lines.append(f"- {rel}")
-
-    lines.append("\nFile contents (truncated as needed):")
-    for path in selected_files:
-        rel = path.relative_to(repo_root)
-        try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception as e:
-            print(f"[WARN] Could not read {rel}: {e}", file=sys.stderr)
-            continue
-
-        if len(text) > max_chars_per_file:
-            text = text[:max_chars_per_file] + "\n...[TRUNCATED]..."
-
-        lines.append(f"\n=== FILE: {rel} ===\n{text}")
-
-    return "\n".join(lines)
-
 
 # ---------- Prompt Templates ----------
 
-def build_text_model_prompt(repo_context: str) -> str:
+def build_text_model_prompt(repo_url: str) -> str:
     """
     Build the full prompt for the text model (Gemini) to produce the JSON pipeline spec.
     """
-    instructions = """
-You are a Principal Systems Architect. Your task is to analyze the ENTIRE codebase
-described below and produce a JSON specification of the data processing pipeline.
+    instructions = f"""
+You are a Principal Systems Architect. Your task is to analyze the GitHub repository at:
+{repo_url}
+
+Use the URL context tool to fetch and analyze the ENTIRE codebase, then produce a JSON specification of the data processing pipeline.
 
 HIGH-LEVEL OBJECTIVE
 - Discover how data flows through this repository.
@@ -191,10 +91,8 @@ OUTPUT FORMAT (IMPORTANT)
 - Do not wrap the JSON in backticks.
 - Do not include any explanation, prose, or comments.
 - The response must be directly parseable as JSON.
-
-REPOSITORY CONTEXT (file list + contents, truncated):
 """
-    return instructions + "\n" + repo_context
+    return instructions
 
 
 def build_image_model_prompt(pipeline_json: dict) -> str:
@@ -294,11 +192,17 @@ def call_text_model(
 ) -> dict:
     """
     Call the text model to generate the JSON pipeline spec, and parse it.
+    Uses URL context tool to directly read the GitHub repository.
     """
     print(f"[INFO] Calling text model: {model}")
+    print("[INFO] Using URL context tool to analyze repository...")
+
     response = client.models.generate_content(
         model=model,
         contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[{"url_context": {}}],
+        ),
     )
     if not response.text:
         raise RuntimeError("Text model returned no text.")
@@ -375,11 +279,6 @@ def main():
         default=DEFAULT_IMAGE_MODEL,
         help=f"Gemini image model to use (default: {DEFAULT_IMAGE_MODEL})",
     )
-    parser.add_argument(
-        "--keep-temp",
-        action="store_true",
-        help="Keep the cloned repo in the temp directory (for debugging).",
-    )
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -387,39 +286,30 @@ def main():
     pipeline_json_path = out_dir / "pipeline.json"
     infographic_path = out_dir / "pipeline.png"
 
-    tmp_root = None
-    try:
-        tmp_root = clone_repo(args.repo_url)
-        repo_context = build_repo_context(tmp_root)
+    client = create_client()
 
-        client = create_client()
+    # Step 1: Repo -> JSON via text model with URL context
+    text_prompt = build_text_model_prompt(args.repo_url)
+    pipeline_json = call_text_model(
+        client=client,
+        model=args.text_model,
+        prompt=text_prompt,
+    )
 
-        # Step 1: Repo -> JSON via text model
-        text_prompt = build_text_model_prompt(repo_context)
-        pipeline_json = call_text_model(
-            client=client,
-            model=args.text_model,
-            prompt=text_prompt,
-        )
+    with pipeline_json_path.open("w", encoding="utf-8") as f:
+        json.dump(pipeline_json, f, indent=2)
+    print(f"[INFO] Saved pipeline JSON to: {pipeline_json_path}")
 
-        with pipeline_json_path.open("w", encoding="utf-8") as f:
-            json.dump(pipeline_json, f, indent=2)
-        print(f"[INFO] Saved pipeline JSON to: {pipeline_json_path}")
+    # Step 2: JSON -> Infographic via image model
+    image_prompt = build_image_model_prompt(pipeline_json)
+    call_image_model(
+        client=client,
+        model=args.image_model,
+        prompt=image_prompt,
+        output_path=infographic_path,
+    )
 
-        # Step 2: JSON -> Infographic via image model
-        image_prompt = build_image_model_prompt(pipeline_json)
-        call_image_model(
-            client=client,
-            model=args.image_model,
-            prompt=image_prompt,
-            output_path=infographic_path,
-        )
-
-        print("[DONE] Infographic generation complete.")
-
-    finally:
-        if tmp_root and tmp_root.exists() and not args.keep_temp:
-            shutil.rmtree(tmp_root, ignore_errors=True)
+    print("[DONE] Infographic generation complete.")
 
 
 if __name__ == "__main__":

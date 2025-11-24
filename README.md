@@ -49,7 +49,7 @@ python repo2infographic.py https://github.com/owner/some-repo
 ```
 
 This will:
-- Clone the target repo into a temporary directory.
+- Use Gemini's URL context tool to directly read the GitHub repository.
 - Analyze the codebase and infer a data pipeline.
 - Save a JSON spec to: `repo2infographic_output/pipeline.json`
 - Generate a 16:9 infographic and save it to: `repo2infographic_output/pipeline.png`
@@ -64,38 +64,27 @@ python repo2infographic.py \
   --image-model gemini-3-pro-image-preview
 ```
 
-### Keep cloned repo for debugging
-
-Add `--keep-temp` if you want to inspect the cloned repo used for analysis:
-
-```bash
-python repo2infographic.py https://github.com/owner/some-repo --keep-temp
-```
-
 ---
 
 ## How It Works
 
-1. **Clone**
-   The script clones the target GitHub repo into a temporary directory.
+1. **URL Context Tool**
+   The script uses Gemini's URL context tool to directly fetch and analyze the GitHub repository without cloning it locally. This is faster, more token-efficient, and eliminates the need for local git operations.
 
-2. **Build Context**
-   It walks the repo, selects up to 40 relevant files (`.py`, `.js`, configs, etc.) and builds a textual context (file list + truncated contents).
-
-3. **Text Model (Pipeline JSON)**
-   It sends a structured prompt and the repo context to Gemini 3 Pro (default `gemini-3-pro-preview`), which returns a JSON object describing:
+2. **Text Model (Pipeline JSON)**
+   Gemini 3 Pro (default `gemini-3-pro-preview`) analyzes the repository and returns a JSON object describing:
    - `repo_name`
    - `repo_summary`
    - `pipeline_overview`
    - `phases` and `steps` (with `source_nodes`, `process_script`, `target_nodes`, `description`)
 
-4. **Image Model (Infographic)**
+3. **Image Model (Infographic)**
    It feeds that JSON into Nano Banana Pro (`gemini-3-pro-image-preview`) with layout instructions:
    - Phases as horizontal swimlanes.
    - Steps as labeled boxes.
    - Arrows representing flow between steps.
 
-5. **Outputs**
+4. **Outputs**
    - `pipeline.json` – canonical pipeline spec.
    - `pipeline.png` – infographic ready for slides, docs, etc.
 
@@ -104,9 +93,8 @@ python repo2infographic.py https://github.com/owner/some-repo --keep-temp
 ## Notes & Limitations
 
 - Works best on small–medium repos with clear data-processing pipelines.
-- For very large monorepos, you may want to:
-  - Increase `max_files` / `max_chars_per_file` in `repo2infographic.py`.
-  - Add include/exclude patterns for specific directories.
+- Gemini's URL context tool can handle large repositories, but extremely large monorepos with thousands of files may take longer to process.
+- The repository must be publicly accessible on GitHub (private repos require authentication).
 - The models may occasionally misinterpret edge cases; treat the output as a draft diagram you can refine.
 
 ---

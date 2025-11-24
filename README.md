@@ -92,6 +92,40 @@ python repo2infographic.py https://github.com/owner/repo \
 python repo2infographic.py --help
 ```
 
+### Apply visual styles:
+
+Add a `--style` flag to customize the aesthetic of your infographic:
+
+```bash
+# Lego brick style
+python repo2infographic.py https://github.com/owner/some-repo --style lego
+
+# Studio Ghibli anime aesthetic
+python repo2infographic.py https://github.com/owner/some-repo --style ghibli
+
+# Cyberpunk neon aesthetic
+python repo2infographic.py https://github.com/owner/some-repo --style cyberpunk
+
+# Clean minimalist design
+python repo2infographic.py https://github.com/owner/some-repo --style minimalist
+
+# Technical blueprint style
+python repo2infographic.py https://github.com/owner/some-repo --style blueprint
+
+# Hand-drawn sketch style
+python repo2infographic.py https://github.com/owner/some-repo --style hand-drawn
+```
+
+**Available styles:**
+- `lego` - Bright primary colors, blocky shapes, toy-like 3D appearance
+- `ghibli` - Hand-drawn watercolor feel, whimsical Studio Ghibli aesthetic
+- `cyberpunk` - Neon colors, dark background, futuristic tech aesthetic
+- `minimalist` - Clean lines, whitespace, simple sans-serif fonts
+- `blueprint` - Technical drawing with blue background and white lines
+- `hand-drawn` - Sketchy lines, notebook paper feel, casual doodle aesthetic
+
+You can also specify custom styles like `retro`, `corporate`, `vaporwave`, etc.
+
 ---
 
 ## 🧠 How It Works

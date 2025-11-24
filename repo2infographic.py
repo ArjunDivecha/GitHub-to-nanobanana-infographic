@@ -102,11 +102,37 @@ OUTPUT FORMAT (IMPORTANT)
     return instructions
 
 
-def build_image_model_prompt(pipeline_json: dict, repo_url: str) -> str:
+def build_image_model_prompt(pipeline_json: dict, repo_url: str, style: str = None) -> str:
     """
     Build the full prompt for the image model (Nano Banana Pro) to create the infographic.
     """
     json_block = json.dumps(pipeline_json, indent=2)
+
+    # Build style instruction if provided
+    style_instruction = ""
+    if style:
+        style_instruction = f"""
+
+VISUAL STYLE REQUIREMENT
+Create the infographic in a '{style}' visual style. Apply this style consistently across:
+- Overall aesthetic and color palette
+- Typography and text rendering
+- Icons and visual elements
+- Box designs and shapes
+- Background and layout
+- Arrows and connectors
+
+Examples of how to interpret styles:
+- 'lego': Bright primary colors, blocky shapes, toy-like 3D appearance, snap-together aesthetic
+- 'ghibli': Hand-drawn feel, soft watercolor palette, whimsical organic shapes, Studio Ghibli anime aesthetic
+- 'cyberpunk': Neon colors, dark background, glowing elements, futuristic tech aesthetic, grid patterns
+- 'minimalist': Clean white/gray palette, thin lines, lots of whitespace, simple sans-serif fonts
+- 'blueprint': Technical drawing style, blue background, white lines, grid paper, architectural feel
+- 'hand-drawn': Sketchy lines, imperfect shapes, notebook paper feel, casual doodle aesthetic
+
+Apply the '{style}' style thoughtfully to create a cohesive, visually striking infographic.
+"""
+
     instructions = f"""
 You are an expert data visualization designer using Nano Banana Pro (Gemini 3 Pro Image).
 Your task is to turn a JSON specification of a codebase's data pipeline into a clear,
@@ -115,6 +141,7 @@ modern 16:9 infographic.
 REPOSITORY CONTEXT
 You have access to the original repository at: {repo_url}
 Use the URL context tool to verify the pipeline structure and gather additional context if needed.
+{style_instruction}
 
 INPUT
 - You are given a JSON object describing:
@@ -331,6 +358,11 @@ def main():
         default=DEFAULT_IMAGE_MODEL,
         help=f"Gemini image model to use (default: {DEFAULT_IMAGE_MODEL})",
     )
+    parser.add_argument(
+        "--style",
+        default=None,
+        help="Visual style for the infographic (e.g., 'lego', 'ghibli', 'cyberpunk', 'minimalist', 'blueprint', 'hand-drawn')",
+    )
     args = parser.parse_args()
 
     # Extract repo name from URL for output filenames
@@ -358,7 +390,7 @@ def main():
     print(f"[INFO] Saved pipeline JSON to: {pipeline_json_path}")
 
     # Step 2: JSON -> Infographic via image model with URL context
-    image_prompt = build_image_model_prompt(pipeline_json, args.repo_url)
+    image_prompt = build_image_model_prompt(pipeline_json, args.repo_url, args.style)
     call_image_model(
         client=client,
         model=args.image_model,

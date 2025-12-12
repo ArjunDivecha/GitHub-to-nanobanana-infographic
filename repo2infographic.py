@@ -14,7 +14,7 @@ from PIL import Image  # noqa: F401 (required for as_image() to work internally)
 # ---------- Configuration ----------
 
 DEFAULT_TEXT_MODEL = "gemini-2.5-pro"
-DEFAULT_IMAGE_MODEL = "nano-banana-pro-preview"
+DEFAULT_IMAGE_MODEL = "gemini-3-pro-image-preview"
 
 
 # ---------- Prompt Templates ----------
@@ -264,14 +264,23 @@ def call_text_model(
             raw = response.text.strip()
             
             # Strip markdown code blocks if present
-            if raw.startswith("```"):
-                # Find the first newline after opening ```
-                first_newline = raw.find("\n")
-                if first_newline != -1:
-                    # Find the closing ```
-                    closing = raw.rfind("```")
-                    if closing != -1:
-                        raw = raw[first_newline + 1:closing].strip()
+            # Strip markdown code blocks if present
+            if "```" in raw:
+                # Find the first opening brace after the first ```
+                start_marker = raw.find("```")
+                json_start = raw.find("{", start_marker)
+                if json_start != -1:
+                    # Find the last closing brace before the last ```
+                    end_marker = raw.rfind("```")
+                    json_end = raw.rfind("}", 0, end_marker)
+                    if json_end != -1:
+                        raw = raw[json_start : json_end + 1]
+            else:
+                 # Even without markdown, try to find the first { and last }
+                 json_start = raw.find("{")
+                 json_end = raw.rfind("}")
+                 if json_start != -1 and json_end != -1:
+                     raw = raw[json_start : json_end + 1]
             
             try:
                 parsed = json.loads(raw)
@@ -307,30 +316,40 @@ def call_image_model(
     Call the image model (Nano Banana Pro) to generate the infographic and save it.
     """
     print(f"[INFO] Calling image model: {model}")
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["Image"],
-            image_config=types.ImageConfig(
-                aspect_ratio="16:9",
-                # image_size="4K",  # Uncomment if you want 4K (higher cost).
+    
+    try:
+        # Use generate_content for Gemini 3 Pro Image (Nano Banana Pro)
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
             ),
-        ),
-    )
-
-    image_saved = False
-    for part in response.parts:
-        img = part.as_image()
-        if img:
+        )
+        
+        image_data = None
+        if response.candidates and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if part.inline_data:
+                    image_data = part.inline_data.data
+                    break
+        
+        if image_data:
+            import io
+            img = Image.open(io.BytesIO(image_data))
             img.save(str(output_path))
-            image_saved = True
-            break
-
-    if not image_saved:
-        raise RuntimeError("Image model did not return an image part.")
-
-    print(f"[INFO] Saved infographic to: {output_path}")
+            print(f"[INFO] Saved infographic to: {output_path}")
+        else:
+            print("[ERROR] No image returned from model.", file=sys.stderr)
+            print("Models not available", file=sys.stderr)
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"[ERROR] Image generation failed: {e}", file=sys.stderr)
+        if "404" in str(e) or "not found" in str(e).lower():
+             print("Models not available", file=sys.stderr)
+             sys.exit(1)
+        raise e
 
 
 # ---------- CLI ----------
@@ -357,6 +376,11 @@ def main():
         "--image-model",
         default=DEFAULT_IMAGE_MODEL,
         help=f"Gemini image model to use (default: {DEFAULT_IMAGE_MODEL})",
+    )
+    parser.add_argument(
+        "--lego",
+        action="store_true",
+        help="Generate the infographic in a Lego-brick style",
     )
     parser.add_argument(
         "--style",
@@ -390,7 +414,11 @@ def main():
     print(f"[INFO] Saved pipeline JSON to: {pipeline_json_path}")
 
     # Step 2: JSON -> Infographic via image model with URL context
-    image_prompt = build_image_model_prompt(pipeline_json, args.repo_url, args.style)
+    image_prompt = build_image_model_prompt(pipeline_json, args.repo_url, style=args.style)
+    
+    if args.lego:
+        image_prompt += "\n\nSTYLE: LEGO\nRender the entire infographic as if it were built out of plastic Lego bricks. The boxes, arrows, and text should look like Lego constructions. Use vibrant primary colors."
+
     call_image_model(
         client=client,
         model=args.image_model,

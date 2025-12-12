@@ -83,7 +83,7 @@ python repo2infographic.py https://github.com/owner/repo --out-dir my_output
 ```bash
 python repo2infographic.py https://github.com/owner/repo \
   --text-model gemini-2.5-pro \
-  --image-model nano-banana-pro-preview
+  --image-model gemini-3-pro-image-preview
 ```
 
 ### Available Options
@@ -130,7 +130,7 @@ You can also specify custom styles like `retro`, `corporate`, `vaporwave`, etc.
 
 ## 🧠 How It Works
 
-### 1. Deep Code Analysis
+### 1. Gemini 2.5 Pro analyzes the repo and produces a JSON pipeline spec.
 The tool uses **Gemini 2.5 Pro** with the URL context tool to:
 - Read the entire repository directly from GitHub (no cloning needed)
 - Identify entry points (`main.py`, `app.py`, `index.tsx`, etc.)
@@ -153,12 +153,12 @@ Generates a structured JSON with:
 - **Metadata**: Decision logic, external services, feedback loops
 
 ### 4. Visual Generation
-Uses **Nano Banana Pro** (Gemini's image generation model) to create:
-- 16:9 landscape infographic
-- Horizontal swimlanes for phases
-- Labeled boxes for steps
-- Arrows showing data flow
-- Clean, professional design
+**Image Model (Infographic)**
+   It feeds that JSON into Nano Banana Pro (`gemini-3-pro-image-preview`) with layout instructions:
+   - Phases as horizontal swimlanes
+   - Labeled boxes for steps
+   - Arrows showing data flow
+   - Clean, professional design
 
 ---
 

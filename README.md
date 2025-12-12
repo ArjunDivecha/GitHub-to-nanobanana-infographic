@@ -1,13 +1,18 @@
-# GitHub to Nano Banana Infographic
+# GitHub/PowerPoint to Nano Banana Infographic
 
-**Automatically generate beautiful data pipeline infographics from any GitHub repository using AI.**
+**Automatically generate beautiful data pipeline infographics from GitHub repositories or PowerPoint presentations using AI.**
 
 This tool uses Google's Gemini models to:
-1. **Analyze** your codebase and understand its execution flow
-2. **Extract** the data pipeline architecture (entry points, data flow, external services)
+1. **Analyze** your codebase or PowerPoint presentation to understand workflows and execution flows
+2. **Extract** the data pipeline architecture (entry points, data flow, external services, process steps)
 3. **Generate** a professional 16:9 infographic visualization
 
 Perfect for documentation, presentations, onboarding, and technical design reviews.
+
+## 📊 Two Input Modes
+
+1. **GitHub Repository Mode** (`repo2infographic.py`) - Analyze code repositories to extract data pipelines
+2. **PowerPoint Mode** (`pptx2infographic.py`) - Convert PowerPoint presentations into visual workflow infographics
 
 ---
 
@@ -66,10 +71,44 @@ python repo2infographic.py https://github.com/owner/repo-name
 
 ## 📖 Usage
 
-### Basic Usage
+### GitHub Repository Mode
+
+**Basic Usage:**
 
 ```bash
 python repo2infographic.py https://github.com/ArjunDivecha/California-Law-Chatbot
+```
+
+### PowerPoint Mode
+
+**Basic Usage:**
+
+```bash
+python pptx2infographic.py path/to/presentation.pptx
+```
+
+The tool will:
+1. Extract all text from the PowerPoint slides
+2. Intelligently analyze the content to determine how many distinct workflows/pipelines exist
+3. Generate a separate infographic for each identified workflow
+4. Save all outputs to `pptx2infographic_output/`
+
+**Output Files:**
+- `presentation_analysis.json` - Analysis of how many infographics to create
+- `presentation_01_Workflow_Name.json` - Pipeline specification for each infographic
+- `presentation_01_Workflow_Name.png` - Generated infographic image for each workflow
+
+**Example:**
+
+```bash
+# Generate infographics from a PowerPoint presentation
+python pptx2infographic.py ~/Documents/DataPipeline.pptx
+
+# With custom output directory
+python pptx2infographic.py presentation.pptx --out-dir my_infographics
+
+# With custom style
+python pptx2infographic.py presentation.pptx --style cyberpunk
 ```
 
 ### Custom Output Directory
@@ -130,7 +169,9 @@ You can also specify custom styles like `retro`, `corporate`, `vaporwave`, etc.
 
 ## 🧠 How It Works
 
-### 1. Deep Code Analysis
+### GitHub Repository Mode
+
+#### 1. Deep Code Analysis
 The tool uses **Gemini 2.5 Pro** with the URL context tool to:
 - Read the entire repository directly from GitHub (no cloning needed)
 - Identify entry points (`main.py`, `app.py`, `index.tsx`, etc.)
@@ -139,20 +180,43 @@ The tool uses **Gemini 2.5 Pro** with the URL context tool to:
 - Find feedback loops and retry mechanisms
 - Label external API calls
 
-### 2. Architecture Detection
+### PowerPoint Mode
+
+#### 1. Text Extraction
+The tool uses **python-pptx** to:
+- Extract all text content from each slide
+- Preserve slide structure and organization
+- Capture titles, bullet points, and text boxes
+
+#### 2. Intelligent Analysis
+**Gemini 2.5 Pro** analyzes the presentation to:
+- Determine how many distinct workflows/pipelines are described
+- Identify natural section boundaries
+- Decide whether to create one comprehensive infographic or multiple focused ones
+- Example: A presentation with "Data Ingestion Pipeline" and "Reporting Pipeline" on different slides would generate 2 separate infographics
+
+#### 3. Per-Section Processing
+For each identified workflow:
+- Extract relevant slides
+- Generate a structured pipeline specification
+- Create a dedicated infographic
+
+### Both Modes
+
+#### Architecture Detection
 Automatically handles different application types:
 - **ETL/Scripts**: File → Processing → Output
 - **Web Apps**: Request → Router → Controller → Service → Database → Response
 - **CLIs**: Command → Handler → Logic → Output
 - **Chatbots**: User Input → Message Handler → LLM → Response
 
-### 3. Pipeline Extraction
+#### Pipeline Extraction
 Generates a structured JSON with:
 - **Phases**: Ingestion, Cleaning, Feature Engineering, Modeling, Optimization, Reporting
 - **Steps**: Each with source nodes, process scripts, target nodes, and descriptions
 - **Metadata**: Decision logic, external services, feedback loops
 
-### 4. Visual Generation
+#### Visual Generation
 Uses **Nano Banana Pro** (Gemini's image generation model) to create:
 - 16:9 landscape infographic
 - Horizontal swimlanes for phases
